@@ -225,6 +225,7 @@ function DrawingPad({ value, onChange, label, testId }: { value: string | null; 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const hasStroke = useRef(false);
+  const [tool, setTool] = useState<'draw' | 'erase'>('draw');
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -255,9 +256,10 @@ function DrawingPad({ value, onChange, label, testId }: { value: string | null; 
     const start = point(event);
     context.beginPath();
     context.moveTo(start.x, start.y);
-    context.lineWidth = 5;
+    context.lineWidth = tool === 'erase' ? 28 : 5;
     context.lineCap = 'round';
     context.lineJoin = 'round';
+    context.globalCompositeOperation = tool === 'erase' ? 'destination-out' : 'source-over';
     context.strokeStyle = '#4a3149';
   };
   const moveStroke = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -272,13 +274,21 @@ function DrawingPad({ value, onChange, label, testId }: { value: string | null; 
     if (!drawing.current) return;
     drawing.current = false;
     const canvas = canvasRef.current;
-    if (canvas && hasStroke.current) onChange(canvas.toDataURL('image/png'));
+    const context = canvas?.getContext('2d');
+    if (canvas && context && hasStroke.current) {
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      const hasInk = pixels.some((_, index) => index % 4 === 3 && pixels[index] > 0);
+      onChange(hasInk ? canvas.toDataURL('image/png') : null);
+      hasStroke.current = hasInk;
+      context.globalCompositeOperation = 'source-over';
+    }
   };
   const clear = () => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext('2d');
     if (canvas && context) context.clearRect(0, 0, canvas.width, canvas.height);
     hasStroke.current = false;
+    setTool('draw');
     onChange(null);
   };
 
@@ -286,13 +296,21 @@ function DrawingPad({ value, onChange, label, testId }: { value: string | null; 
     <div className="face-panel">
       <header>
         <span>{label} handwriting</span>
-        <button type="button" className="icon-button" onClick={clear} aria-label={`Clear ${label} drawing`} data-testid={`button-clear-${testId}`}>
-          <Eraser size={14} />
-        </button>
+        <div className="draw-tools" role="toolbar" aria-label={`${label} handwriting tools`}>
+          <button type="button" className={`icon-button draw-tool-button ${tool === 'draw' ? 'active' : ''}`} onClick={() => setTool('draw')} aria-label={`Draw on ${label} handwriting`} aria-pressed={tool === 'draw'} data-testid={`button-draw-${testId}`}>
+            <Pencil size={14} />
+          </button>
+          <button type="button" className={`icon-button draw-tool-button ${tool === 'erase' ? 'active' : ''}`} onClick={() => setTool('erase')} aria-label={`Erase ${label} handwriting`} aria-pressed={tool === 'erase'} data-testid={`button-erase-${testId}`}>
+            <Eraser size={14} />
+          </button>
+          <button type="button" className="icon-button" onClick={clear} aria-label={`Clear ${label} drawing`} data-testid={`button-clear-${testId}`}>
+            <Trash2 size={14} />
+          </button>
+        </div>
       </header>
-      <div className="draw-board">
+      <div className={`draw-board ${tool === 'erase' ? 'erasing' : ''}`}>
         <canvas ref={canvasRef} width={900} height={480} onPointerDown={startStroke} onPointerMove={moveStroke} onPointerUp={endStroke} onPointerCancel={endStroke} data-testid={`canvas-${testId}`} />
-        <span className="draw-hint">pointer / stylus</span>
+        <span className="draw-hint">{tool === 'erase' ? 'eraser active' : 'pointer / stylus'}</span>
       </div>
     </div>
   );
@@ -332,12 +350,12 @@ function ReviewPanel({ cards }: { cards: Card[] }) {
         <div className={`flip-card ${flipped ? 'flipped' : ''}`} onClick={() => setFlipped((current) => !current)} role="button" tabIndex={0} aria-label="Flip flashcard" data-testid={`review-card-${card.id}`}>
           <div className="flip-face front">
             <small>Question</small>
-            <div><p>{card.frontText || 'A blank question, waiting for you.'}</p>{card.frontDrawing && <img className="drawing-preview" src={card.frontDrawing} alt="Front handwriting" />}</div>
+            <div>{card.frontText && <p>{card.frontText}</p>}{card.frontDrawing && <img className="drawing-preview" src={card.frontDrawing} alt="Front handwriting" />}</div>
             <small>Click or press space to turn over</small>
           </div>
           <div className="flip-face back">
             <small>Answer</small>
-            <div><p>{card.backText || 'Write the answer in the editor.'}</p>{card.backDrawing && <img className="drawing-preview" src={card.backDrawing} alt="Back handwriting" />}</div>
+            <div>{card.backText && <p>{card.backText}</p>}{card.backDrawing && <img className="drawing-preview" src={card.backDrawing} alt="Back handwriting" />}</div>
             <small>Keep the ones that surprise you</small>
           </div>
         </div>
@@ -481,7 +499,7 @@ function DeckPage() {
                 {cards.map((card, index) => (
                   <button type="button" className={`card-list-item ${activeCardId === card.id ? 'active' : ''}`} key={card.id} onClick={() => setActiveCardId(card.id)} data-testid={`button-select-card-${card.id}`}>
                     <span className="card-number">{index + 1}</span>
-                    <span className="card-list-copy"><strong>{card.frontText || 'Untitled card'}</strong><span>{card.backText || 'No answer yet'}</span></span>
+                    <span className="card-list-copy"><strong>{card.frontText}</strong><span>{card.backText}</span></span>
                   </button>
                 ))}
                 {!cards.length && <div className="empty-state" style={{ minHeight: 160, padding: '1rem' }}><div><BookOpen size={19} /><p>Add the first card to begin.</p></div></div>}
@@ -499,12 +517,12 @@ function DeckPage() {
                   <div className="side-by-side">
                     <div className="face-panel">
                       <header><span>Front / prompt</span><span>{frontText.length} chars</span></header>
-                      <textarea className="text-area" value={frontText} onChange={(event) => setFrontText(event.target.value)} placeholder="What do you want to be able to answer?" data-testid="input-front-text" />
+                      <textarea className="text-area" value={frontText} onChange={(event) => setFrontText(event.target.value)} data-testid="input-front-text" />
                       <DrawingPad value={frontDrawing} onChange={setFrontDrawing} label="Front" testId="front" />
                     </div>
                     <div className="face-panel">
                       <header><span>Back / answer</span><span>{backText.length} chars</span></header>
-                      <textarea className="text-area" value={backText} onChange={(event) => setBackText(event.target.value)} placeholder="Write it in the way you would explain it." data-testid="input-back-text" />
+                      <textarea className="text-area" value={backText} onChange={(event) => setBackText(event.target.value)} data-testid="input-back-text" />
                       <DrawingPad value={backDrawing} onChange={setBackDrawing} label="Back" testId="back" />
                     </div>
                   </div>
