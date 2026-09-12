@@ -1,0 +1,1 @@
+- [Generated client typings](generated-client-typings.md) — include `dom.iterable` in the shared client TypeScript lib when generated fetch helpers use `Headers.entries()`.

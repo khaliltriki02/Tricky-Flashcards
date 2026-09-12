@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: decks
+    description: Revision deck operations
+  - name: cards
+    description: Flashcard operations
 paths:
   /healthz:
     get:
@@ -24,7 +28,208 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /decks:
+    get:
+      operationId: listDecks
+      tags: [decks]
+      summary: List revision decks
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Revision decks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Deck"
+    post:
+      operationId: createDeck
+      tags: [decks]
+      summary: Create a revision deck
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeckInput"
+      responses:
+        "201":
+          description: Created deck
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+  /decks/{deckId}:
+    get:
+      operationId: getDeck
+      tags: [decks]
+      summary: Get a revision deck
+      parameters:
+        - $ref: "#/components/parameters/DeckId"
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Revision deck
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateDeck
+      tags: [decks]
+      summary: Update a revision deck
+      parameters:
+        - $ref: "#/components/parameters/DeckId"
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeckUpdate"
+      responses:
+        "200":
+          description: Updated deck
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteDeck
+      tags: [decks]
+      summary: Delete a revision deck
+      parameters:
+        - $ref: "#/components/parameters/DeckId"
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "204":
+          description: Deck deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /decks/{deckId}/cards:
+    get:
+      operationId: listCards
+      tags: [cards]
+      summary: List cards in a deck
+      parameters:
+        - $ref: "#/components/parameters/DeckId"
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Flashcards
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Card"
+    post:
+      operationId: createCard
+      tags: [cards]
+      summary: Create a flashcard
+      parameters:
+        - $ref: "#/components/parameters/DeckId"
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardInput"
+      responses:
+        "201":
+          description: Created flashcard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+  /cards/{cardId}:
+    get:
+      operationId: getCard
+      tags: [cards]
+      summary: Get a flashcard
+      parameters:
+        - $ref: "#/components/parameters/CardId"
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Flashcard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateCard
+      tags: [cards]
+      summary: Update a flashcard
+      parameters:
+        - $ref: "#/components/parameters/CardId"
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardUpdate"
+      responses:
+        "200":
+          description: Updated flashcard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteCard
+      tags: [cards]
+      summary: Delete a flashcard
+      parameters:
+        - $ref: "#/components/parameters/CardId"
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "204":
+          description: Flashcard deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
+  parameters:
+    UserId:
+      name: x-user-id
+      in: header
+      required: false
+      schema:
+        type: string
+        default: local-user
+    DeckId:
+      name: deckId
+      in: path
+      required: true
+      schema:
+        type: integer
+    CardId:
+      name: cardId
+      in: path
+      required: true
+      schema:
+        type: integer
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +238,61 @@ components:
           type: string
       required:
         - status
+    Deck:
+      type: object
+      required: [id, userId, name, description, cardCount, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        userId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        cardCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    DeckInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1 }
+        description: { type: string }
+    DeckUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        description: { type: string }
+    Card:
+      type: object
+      required: [id, deckId, frontText, backText, frontDrawing, backDrawing, position, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        deckId: { type: integer }
+        frontText: { type: string }
+        backText: { type: string }
+        frontDrawing: { type: ["string", "null"] }
+        backDrawing: { type: ["string", "null"] }
+        position: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CardInput:
+      type: object
+      required: [frontText, backText]
+      properties:
+        frontText: { type: string }
+        backText: { type: string }
+        frontDrawing: { type: ["string", "null"] }
+        backDrawing: { type: ["string", "null"] }
+        position: { type: integer }
+    CardUpdate:
+      type: object
+      properties:
+        frontText: { type: string }
+        backText: { type: string }
+        frontDrawing: { type: ["string", "null"] }
+        backDrawing: { type: ["string", "null"] }
+        position: { type: integer }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
 

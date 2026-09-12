@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Tricky Flashcards"
+description = "A focused flashcard revision app for organizing study topics, creating text or handwritten cards, and reviewing them with a smooth flip experience."
+version = "1.0.0"
+id = "artifacts/tricky-flashcards"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25239
+
+[services.development]
+run = "pnpm --filter @workspace/tricky-flashcards run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/tricky-flashcards", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/tricky-flashcards/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25239"
+BASE_PATH = "/"
