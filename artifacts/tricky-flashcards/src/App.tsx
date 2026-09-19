@@ -316,13 +316,77 @@ function DrawingPad({ value, onChange, label, testId }: { value: string | null; 
   );
 }
 
+function HandwritingPreview({ src, alt }: { src: string; alt: string }) {
+  const [croppedSrc, setCroppedSrc] = useState(src);
+
+  useEffect(() => {
+    let active = true;
+    setCroppedSrc(src);
+    const image = new Image();
+    image.onload = () => {
+      const sourceCanvas = document.createElement('canvas');
+      sourceCanvas.width = image.naturalWidth;
+      sourceCanvas.height = image.naturalHeight;
+      const sourceContext = sourceCanvas.getContext('2d');
+      if (!sourceContext) return;
+      sourceContext.drawImage(image, 0, 0);
+
+      const { data, width, height } = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+      let minX = width;
+      let minY = height;
+      let maxX = -1;
+      let maxY = -1;
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          if (data[(y * width + x) * 4 + 3] > 12) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+      }
+
+      if (maxX < 0 || !active) return;
+      const padding = Math.max(14, Math.round(Math.max(maxX - minX + 1, maxY - minY + 1) * 0.08));
+      const cropX = Math.max(0, minX - padding);
+      const cropY = Math.max(0, minY - padding);
+      const cropRight = Math.min(width, maxX + padding + 1);
+      const cropBottom = Math.min(height, maxY + padding + 1);
+      const cropCanvas = document.createElement('canvas');
+      cropCanvas.width = cropRight - cropX;
+      cropCanvas.height = cropBottom - cropY;
+      const cropContext = cropCanvas.getContext('2d');
+      if (!cropContext) return;
+      cropContext.drawImage(sourceCanvas, cropX, cropY, cropCanvas.width, cropCanvas.height, 0, 0, cropCanvas.width, cropCanvas.height);
+      if (active) setCroppedSrc(cropCanvas.toDataURL('image/png'));
+    };
+    image.src = src;
+    return () => {
+      active = false;
+    };
+  }, [src]);
+
+  return <img className="drawing-preview" src={croppedSrc} alt={alt} />;
+}
+
+function shuffleCards(cards: Card[]) {
+  const shuffled = [...cards];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
 function ReviewPanel({ cards }: { cards: Card[] }) {
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const card = cards[index];
+  const [reviewCards] = useState(() => shuffleCards(cards));
+  const card = reviewCards[index];
   useEffect(() => {
-    setIndex((current) => Math.min(current, Math.max(cards.length - 1, 0)));
-  }, [cards.length]);
+    setIndex((current) => Math.min(current, Math.max(reviewCards.length - 1, 0)));
+  }, [reviewCards.length]);
   useEffect(() => {
     setFlipped(false);
   }, [card?.id]);
@@ -332,30 +396,30 @@ function ReviewPanel({ cards }: { cards: Card[] }) {
         event.preventDefault();
         setFlipped((current) => !current);
       }
-      if (event.key === 'ArrowRight') setIndex((current) => Math.min(cards.length - 1, current + 1));
+      if (event.key === 'ArrowRight') setIndex((current) => Math.min(reviewCards.length - 1, current + 1));
       if (event.key === 'ArrowLeft') setIndex((current) => Math.max(0, current - 1));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [cards.length]);
+  }, [reviewCards.length]);
   if (!card) {
     return <div className="empty-state" data-testid="empty-review"><div><div className="empty-mark"><BookOpen size={21} /></div><h3>Nothing to review yet.</h3><p>Add a card above, then come back here when you are ready.</p></div></div>;
   }
-  const percent = ((index + 1) / cards.length) * 100;
+  const percent = ((index + 1) / reviewCards.length) * 100;
   return (
     <section className="review-shell" aria-label="Review session" data-testid="review-session">
-      <div className="review-top"><span>Quiet review</span><span data-testid="text-review-count">{index + 1} / {cards.length}</span></div>
+      <div className="review-top"><span>Quiet review</span><span data-testid="text-review-count">{index + 1} / {reviewCards.length}</span></div>
       <div className="review-progress"><i style={{ width: `${percent}%` }} /></div>
       <div className="flip-stage">
         <div className={`flip-card ${flipped ? 'flipped' : ''}`} onClick={() => setFlipped((current) => !current)} role="button" tabIndex={0} aria-label="Flip flashcard" data-testid={`review-card-${card.id}`}>
           <div className="flip-face front">
             <small>Question</small>
-            <div>{card.frontText && <p>{card.frontText}</p>}{card.frontDrawing && <img className="drawing-preview" src={card.frontDrawing} alt="Front handwriting" />}</div>
+            <div className="flip-face-content">{card.frontText && <p>{card.frontText}</p>}{card.frontDrawing && <HandwritingPreview src={card.frontDrawing} alt="Front handwriting" />}</div>
             <small>Click or press space to turn over</small>
           </div>
           <div className="flip-face back">
             <small>Answer</small>
-            <div>{card.backText && <p>{card.backText}</p>}{card.backDrawing && <img className="drawing-preview" src={card.backDrawing} alt="Back handwriting" />}</div>
+            <div className="flip-face-content">{card.backText && <p>{card.backText}</p>}{card.backDrawing && <HandwritingPreview src={card.backDrawing} alt="Back handwriting" />}</div>
             <small>Keep the ones that surprise you</small>
           </div>
         </div>
@@ -379,6 +443,7 @@ function DeckPage() {
   const cards = useMemo(() => [...((cardsQuery.data ?? []) as Card[])].sort((a, b) => a.position - b.position), [cardsQuery.data]);
   const [activeCardId, setActiveCardId] = useState<number | null>(null);
   const [reviewMode, setReviewMode] = useState(() => new URLSearchParams(window.location.search).get('review') === '1');
+  const [reviewSession, setReviewSession] = useState(0);
   const [frontText, setFrontText] = useState('');
   const [backText, setBackText] = useState('');
   const [frontDrawing, setFrontDrawing] = useState<string | null>(null);
@@ -482,7 +547,14 @@ function DeckPage() {
           <p>{deck.description || 'Give this stack a little context in the field below.'}</p>
         </div>
         <div className="deck-head-actions">
-          <button type="button" className={reviewMode ? 'secondary-button' : 'primary-button'} onClick={() => setReviewMode((current) => !current)} data-testid="button-toggle-review">
+          <button type="button" className={reviewMode ? 'secondary-button' : 'primary-button'} onClick={() => {
+            if (reviewMode) {
+              setReviewMode(false);
+            } else {
+              setReviewSession((current) => current + 1);
+              setReviewMode(true);
+            }
+          }} data-testid="button-toggle-review">
             {reviewMode ? <Pencil size={16} /> : <Play size={16} fill="currentColor" />}
             {reviewMode ? 'Edit deck' : 'Review deck'}
           </button>
@@ -490,7 +562,7 @@ function DeckPage() {
         </div>
       </div>
 
-      {reviewMode ? <ReviewPanel cards={cards} /> : (
+      {reviewMode ? <ReviewPanel key={reviewSession} cards={cards} /> : (
         <>
           <div className="deck-layout">
             <aside className="sidebar-panel">
