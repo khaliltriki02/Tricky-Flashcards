@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: tricky-flashcards
+    runtime: node
+    region: frankfurt
+    plan: free
+    buildCommand: pnpm install --frozen-lockfile && pnpm build
+    preDeployCommand: pnpm --filter @workspace/db push
+    startCommand: pnpm --filter @workspace/api-server start
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tricky-flashcards-db
+          property: connectionString
+
+databases:
+  - name: tricky-flashcards-db
+    databaseName: tricky_flashcards
+    user: tricky_flashcards
+    region: frankfurt
+    plan: free
