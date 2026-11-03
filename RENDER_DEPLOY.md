@@ -14,8 +14,9 @@ is required.
    service and `tricky-flashcards-db` PostgreSQL database, then click **Apply**.
 4. Wait for the database and first deploy to finish. Render passes its private
    database connection string to the service as `DATABASE_URL` and runs
-   `drizzle-kit push` before the service starts, creating the `decks` and
-   `cards` tables.
+   `drizzle-kit push` at the end of the build, before the service starts,
+   creating the `decks` and `cards` tables. This works with the Free plan,
+   which does not support a pre-deploy command.
 5. Open the service's `onrender.com` URL. You can confirm the API is healthy at
    `https://YOUR-SERVICE.onrender.com/api/healthz`.
 
