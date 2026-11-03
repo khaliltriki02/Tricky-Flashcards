@@ -6,7 +6,7 @@ services:
     plan: free
     # Free-tier web services do not support preDeployCommand. Run the schema
     # sync at the end of the build instead, before the new service starts.
-    buildCommand: pnpm install --frozen-lockfile && pnpm build && pnpm --filter @workspace/db push
+    buildCommand: pnpm install --frozen-lockfile && pnpm run typecheck && pnpm --filter @workspace/tricky-flashcards build && pnpm --filter @workspace/api-server build && pnpm --filter @workspace/db push
     startCommand: pnpm --filter @workspace/api-server start
     healthCheckPath: /api/healthz
     envVars:
